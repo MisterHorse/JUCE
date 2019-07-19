@@ -513,6 +513,22 @@ bool JucerDocument::findTemplateFiles (String& headerContent, String& cppContent
     return true;
 }
 
+static String fixLineEndings (const String& s)
+{
+    StringArray lines;
+    lines.addLines (s);
+    
+    for (int i = 0; i < lines.size(); ++i)
+        lines.set (i, lines[i].trimEnd());
+    
+    while (lines.size() > 0 && lines [lines.size() - 1].trim().isEmpty())
+        lines.remove (lines.size() - 1);
+    
+    lines.add (String());
+    
+    return lines.joinIntoString ("\n");
+}
+
 bool JucerDocument::flushChangesToDocuments (Project* project, bool isInitial)
 {
     String headerTemplate, cppTemplate;

@@ -105,10 +105,22 @@ public:
             r.origin.y = (CGFloat) component.getY();
             flipScreenRect (r);
 
-            window = [createWindowInstance() initWithContentRect: r
-                                                       styleMask: getNSWindowStyleMask (windowStyleFlags)
-                                                         backing: NSBackingStoreBuffered
-                                                           defer: YES];
+            if (windowStyleFlags & ComponentPeer::windowIsPanel)
+            {
+                createdAsPanel = true;
+                window = [createPanelInstance() initWithContentRect: r
+                                                          styleMask: getNSWindowStyleMask (windowStyleFlags)
+                                                            backing: NSBackingStoreBuffered
+                                                              defer: YES];
+            }
+            else
+            {
+                window = [createWindowInstance() initWithContentRect: r
+                                                           styleMask: getNSWindowStyleMask (windowStyleFlags)
+                                                             backing: NSBackingStoreBuffered
+                                                               defer: YES];
+            }
+            
             setOwner (window, this);
             [window orderOut: nil];
            #if defined (MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
@@ -492,13 +504,19 @@ public:
     {
         if (! isSharedWindow)
         {
-            [window setLevel: alwaysOnTop ? ((getStyleFlags() & windowIsTemporary) != 0 ? NSPopUpMenuWindowLevel
-                                                                                        : NSFloatingWindowLevel)
-                                          : NSNormalWindowLevel];
-
+            if (createdAsPanel)
+            {
+                [(NSPanel*)window setFloatingPanel: alwaysOnTop];
+            }
+            else
+            {
+                [window setLevel: alwaysOnTop ? ((getStyleFlags() & windowIsTemporary) != 0 ? NSPopUpMenuWindowLevel
+                                                                                            : NSFloatingWindowLevel)
+                                              : NSNormalWindowLevel];
+            }
+    
             isAlwaysOnTop = alwaysOnTop;
         }
-
         return true;
     }
 
@@ -624,7 +642,32 @@ public:
        #else
         NSPoint screenPos = [[ev window] convertBaseToScreen: windowPos];
        #endif
-
+        
+        // this fixes an issue when multiple peers have registered mouse move listeners and one mouse event is incorrectly handled multiple times
+        // which causes that it is being incorrectly interpreted in other peers as mouse exit etc..
+        if (ComponentPeer::getNumPeers() > 1)
+        {
+            if (auto compUnderMouse = Desktop::getInstance().findComponentAt(Point<int>(screenPos.x, getMainScreenHeight() - screenPos.y)))
+            {
+                NSViewComponentPeer* peerUnderMouse = dynamic_cast<NSViewComponentPeer*>(compUnderMouse->getPeer());
+                if (peerUnderMouse && (peerUnderMouse != this))
+                {
+                    //DBG("other peer should receive this event. forwarding to peer with comp: " << compUnderMouse->getTopLevelComponent()->getName());
+                    peerUnderMouse->redirectMouseMove(ev);
+                    return;
+                }
+            }
+            
+            static NSEvent* lastEvent = nullptr;
+            if (ev == lastEvent)
+            {
+                //DBG("skipping event. already handled in comp: " << getComponent().getName());
+                return;
+            }
+            //DBG("first time event for comp: " << getComponent().getName());
+            lastEvent = ev;
+        }
+        
         if (isWindowAtPoint ([ev window], screenPos))
             sendMouseEvent (ev);
         else
@@ -1397,6 +1440,9 @@ public:
     {
         if (window != nil)
         {
+            if (isFocused()) // to avoid neverending loop
+                return;
+            
             [window makeKeyWindow];
             [window makeFirstResponder: view];
 
@@ -1431,9 +1477,12 @@ public:
     static Array<int> keysCurrentlyDown;
     static int insideToFrontCall;
 
+    bool createdAsPanel = false;
+
 private:
     static NSView* createViewInstance();
     static NSWindow* createWindowInstance();
+    static NSPanel* createPanelInstance();
 
     static void setOwner (id viewOrWindow, NSViewComponentPeer* newOwner)
     {
@@ -1570,6 +1619,8 @@ struct JuceNSViewClass   : public ObjCClass<NSView>
     {
         addIvar<NSViewComponentPeer*> ("owner");
 
+        addIvar<uint64> ("fwdBecomeFirstResponderToAncestorAtLevel");
+
         addMethod (@selector (isOpaque),                      isOpaque,                   "c@:");
         addMethod (@selector (drawRect:),                     drawRect,                   "v@:", @encode (NSRect));
         addMethod (@selector (mouseDown:),                    mouseDown,                  "v@:@");
@@ -1635,6 +1686,11 @@ struct JuceNSViewClass   : public ObjCClass<NSView>
     }
 
 private:
+    static uint64 shouldForwardBecomeFirstResponderToAncestorAtLevel(id self)
+    {
+        return (uint64)getIvar<void*>(self, "fwdBecomeFirstResponderToAncestorAtLevel");
+    }
+    
     static NSViewComponentPeer* getOwner (id self)
     {
         return getIvar<NSViewComponentPeer*> (self, "owner");
@@ -1881,8 +1937,21 @@ private:
 
     static BOOL becomeFirstResponder (id self, SEL)
     {
-        if (auto* owner = getOwner (self))
-            owner->viewFocusGain();
+        int forwardToSuperView = shouldForwardBecomeFirstResponderToAncestorAtLevel(self);
+        if (forwardToSuperView > 0)
+        {
+            NSView* view = self;
+            while ((forwardToSuperView-- > 0) && (view != nil))
+                view = [view superview];
+
+            if (view)
+                [view becomeFirstResponder];
+        }
+        else
+        {
+            if (auto* owner = getOwner (self))
+                owner->viewFocusGain();
+        }
 
         return YES;
     }
@@ -1964,6 +2033,8 @@ struct JuceNSWindowClass   : public ObjCClass<NSWindow>
         addMethod (@selector (window:shouldDragDocumentWithEvent:from:withPasteboard:),
                    shouldAllowIconDrag, "B@:@", @encode (NSEvent*), @encode (NSPoint), @encode (NSPasteboard*));
 
+        addMethod (@selector (isAccessibilitySelectorAllowed:), isAccessibilitySelectorAllowed,    "c@::");
+        
        #if defined (MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
         addProtocol (@protocol (NSWindowDelegate));
        #endif
@@ -1977,6 +2048,11 @@ private:
         return getIvar<NSViewComponentPeer*> (self, "owner");
     }
 
+    static BOOL isAccessibilitySelectorAllowed (id /*self*/, SEL /*sel*/, SEL /*selector*/)
+    {
+        return NO;
+    }
+   
     //==============================================================================
     static BOOL canBecomeKeyWindow (id self, SEL)
     {
@@ -2093,6 +2169,146 @@ private:
     }
 };
 
+//==============================================================================
+struct JuceNSPanelClass   : public ObjCClass<NSPanel>
+{
+    JuceNSPanelClass()  : ObjCClass<NSPanel> ("JUCEPanel_")
+    {
+        addIvar<NSViewComponentPeer*> ("owner");
+        
+        addMethod (@selector (canBecomeKeyWindow),            canBecomeKeyWindow,        "c@:");
+        addMethod (@selector (canBecomeMainWindow),           canBecomeMainWindow,        "c@:");
+        addMethod (@selector (becomeKeyWindow),               becomeKeyWindow,           "v@:");
+        addMethod (@selector (windowShouldClose:),            windowShouldClose,         "c@:@");
+        addMethod (@selector (constrainFrameRect:toScreen:),  constrainFrameRect,        @encode (NSRect), "@:",  @encode (NSRect), "@");
+        addMethod (@selector (windowWillResize:toSize:),      windowWillResize,          @encode (NSSize), "@:@", @encode (NSSize));
+        addMethod (@selector (windowDidExitFullScreen:),      windowDidExitFullScreen,   "v@:@");
+        addMethod (@selector (zoom:),                         zoom,                      "v@:@");
+        addMethod (@selector (windowWillMove:),               windowWillMove,            "v@:@");
+        addMethod (@selector (windowWillStartLiveResize:),    windowWillStartLiveResize, "v@:@");
+        addMethod (@selector (windowDidEndLiveResize:),       windowDidEndLiveResize,    "v@:@");
+        
+        addMethod (@selector (isAccessibilitySelectorAllowed:), isAccessibilitySelectorAllowed,    "c@::");
+        
+#if defined (MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+        addProtocol (@protocol (NSWindowDelegate));
+#endif
+        
+        registerClass();
+    }
+    
+private:
+    static NSViewComponentPeer* getOwner (id self)
+    {
+        return getIvar<NSViewComponentPeer*> (self, "owner");
+    }
+    
+    static BOOL isAccessibilitySelectorAllowed (id /*self*/, SEL /*sel*/, SEL /*selector*/)
+    {
+        return NO;
+    }
+    
+    //==============================================================================
+    static BOOL canBecomeKeyWindow (id self, SEL)
+    {
+        NSViewComponentPeer* const owner = getOwner (self);
+        
+        return owner != nullptr
+        && owner->canBecomeKeyWindow()
+        && ! owner->sendModalInputAttemptIfBlocked();
+    }
+    
+    static BOOL canBecomeMainWindow (id self, SEL)
+    {
+        NSViewComponentPeer* const owner = getOwner (self);
+        
+        return owner != nullptr
+        && owner->canBecomeMainWindow()
+        && ! owner->sendModalInputAttemptIfBlocked();
+    }
+    
+    static void becomeKeyWindow (id self, SEL)
+    {
+        sendSuperclassMessage (self, @selector (becomeKeyWindow));
+        
+        if (NSViewComponentPeer* const owner = getOwner (self))
+            owner->becomeKeyWindow();
+    }
+    
+    static BOOL windowShouldClose (id self, SEL, id /*window*/)
+    {
+        NSViewComponentPeer* const owner = getOwner (self);
+        return owner == nullptr || owner->windowShouldClose();
+    }
+    
+    static NSRect constrainFrameRect (id self, SEL, NSRect frameRect, NSScreen*)
+    {
+        if (NSViewComponentPeer* const owner = getOwner (self))
+            frameRect = owner->constrainRect (frameRect);
+        
+        return frameRect;
+    }
+    
+    static NSSize windowWillResize (id self, SEL, NSWindow*, NSSize proposedFrameSize)
+    {
+        NSViewComponentPeer* const owner = getOwner (self);
+        
+        if (owner == nullptr || owner->isZooming)
+            return proposedFrameSize;
+        
+        NSRect frameRect = [(NSWindow*) self frame];
+        frameRect.origin.y -= proposedFrameSize.height - frameRect.size.height;
+        frameRect.size = proposedFrameSize;
+        
+        frameRect = owner->constrainRect (frameRect);
+        
+        if (owner->hasNativeTitleBar())
+            owner->sendModalInputAttemptIfBlocked();
+        
+        return frameRect.size;
+    }
+    
+    static void windowDidExitFullScreen (id, SEL, NSNotification*)
+    {
+#if defined (MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+        [NSApp setPresentationOptions: NSApplicationPresentationDefault];
+#endif
+    }
+    
+    static void zoom (id self, SEL, id sender)
+    {
+        if (NSViewComponentPeer* const owner = getOwner (self))
+        {
+            owner->isZooming = true;
+            objc_super s = { self, [NSWindow class] };
+            getMsgSendSuperFn() (&s, @selector (zoom:), sender);
+            owner->isZooming = false;
+            
+            owner->redirectMovedOrResized();
+        }
+    }
+    
+    static void windowWillMove (id self, SEL, NSNotification*)
+    {
+        if (NSViewComponentPeer* const owner = getOwner (self))
+            if (owner->hasNativeTitleBar())
+                owner->sendModalInputAttemptIfBlocked();
+    }
+    
+    static void windowWillStartLiveResize (id self, SEL, NSNotification*)
+    {
+        if (NSViewComponentPeer* const owner = getOwner (self))
+            owner->liveResizingStart();
+    }
+    
+    static void windowDidEndLiveResize (id self, SEL, NSNotification*)
+    {
+        if (NSViewComponentPeer* const owner = getOwner (self))
+            owner->liveResizingEnd();
+    }
+};
+
+
 NSView* NSViewComponentPeer::createViewInstance()
 {
     static JuceNSViewClass cls;
@@ -2104,6 +2320,13 @@ NSWindow* NSViewComponentPeer::createWindowInstance()
     static JuceNSWindowClass cls;
     return cls.createInstance();
 }
+
+NSPanel* NSViewComponentPeer::createPanelInstance()
+{
+    static JuceNSPanelClass cls;
+    return cls.createInstance();
+}
+
 
 
 //==============================================================================

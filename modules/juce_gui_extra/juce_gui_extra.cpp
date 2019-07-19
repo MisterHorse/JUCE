@@ -195,5 +195,6 @@ namespace juce
     bool WebBrowserComponent::pageLoadHadNetworkError (const String&) { return true; }
     void WebBrowserComponent::windowCloseRequest() {}
     void WebBrowserComponent::newWindowAttemptingToLoad (const String&) {}
+	void WebBrowserComponent::pageLoadFinishedWithStatus (int) {};
 }
 #endif

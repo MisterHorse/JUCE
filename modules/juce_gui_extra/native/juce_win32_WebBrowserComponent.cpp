@@ -87,8 +87,6 @@ public:
     {
         if (browser != nullptr)
         {
-            LPSAFEARRAY sa = nullptr;
-
             VARIANT headerFlags, frame, postDataVar, headersVar;  // (_variant_t isn't available in all compilers)
             VariantInit (&headerFlags);
             VariantInit (&frame);
@@ -103,6 +101,7 @@ public:
 
             if (postData != nullptr && postData->getSize() > 0)
             {
+				LPSAFEARRAY sa = nullptr;
                 sa = SafeArrayCreateVector (VT_UI1, 0, (ULONG) postData->getSize());
 
                 if (sa != nullptr)
@@ -121,17 +120,19 @@ public:
                         V_VT (&postDataVar2) = VT_ARRAY | VT_UI1;
                         V_ARRAY (&postDataVar2) = sa;
 
+                        sa = nullptr;
                         postDataVar = postDataVar2;
                     }
+					else // SafeArrayAccessData failed
+					{
+                        SafeArrayDestroy(sa);
+					}
                 }
             }
 
             auto urlBSTR = SysAllocString ((const OLECHAR*) url.toWideCharPointer());
             browser->Navigate (urlBSTR, &headerFlags, &frame, &postDataVar, &headersVar);
             SysFreeString (urlBSTR);
-
-            if (sa != nullptr)
-                SafeArrayDestroy (sa);
 
             VariantClear (&headerFlags);
             VariantClear (&frame);
@@ -177,7 +178,7 @@ private:
 
             if (dispIdMember == DISPID_DOCUMENTCOMPLETE)
             {
-                owner.pageFinishedLoading (getStringFromVariant (pDispParams->rgvarg[0].pvarVal));
+				owner.pageFinishedLoading (getStringFromVariant (pDispParams->rgvarg[0].pvarVal));
                 return S_OK;
             }
 
@@ -201,6 +202,10 @@ private:
                     if (! owner.pageLoadHadNetworkError (message))
                         *pDispParams->rgvarg[0].pboolVal = VARIANT_TRUE;
                 }
+				else
+				{
+					owner.pageLoadFinishedWithStatus (statusCode);
+				}
 
                 return S_OK;
             }

@@ -67,6 +67,11 @@
 #endif
 
 //==============================================================================
+
+#if JUCE_WINDOWS
+ #include "native/juce_win32_DirectShowComponent.cpp"
+#endif
+    
 #include "playback/juce_VideoComponent.cpp"
 
 #if JUCE_USE_CAMERA
