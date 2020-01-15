@@ -178,14 +178,11 @@ struct JSONParser
                 break;
 
             case 'u':   // "undefined"
-                if (t2.getAndAdvance() == 'n' && t2.getAndAdvance() == 'd' && t2.getAndAdvance() == 'e' && t2.getAndAdvance() == 'f' && t2.getAndAdvance() == 'i' && t2.getAndAdvance() == 'n' && t2.getAndAdvance() == 'e' && t2.getAndAdvance() == 'd')
-                {
-                    t = t2;
-                    result = var::undefined();
-                    return Result::ok();
-                }
-                break;
+                if (matchString ("ndefined"))
+                    return var::undefined();
                 
+                break;
+
             default:
                 break;
         }

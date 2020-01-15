@@ -125,7 +125,7 @@ private:
               statusCode = [(NSHTTPURLResponse*)response statusCode];
 
             getOwner (self)->pageFinishedLoading (nsStringToJuce ([url absoluteString]));
-            getOwner (self)->pageLoadFinishedWithStatus (statusCode);
+            getOwner (self)->pageLoadFinishedWithStatus ((int)statusCode);
         }
     }
 

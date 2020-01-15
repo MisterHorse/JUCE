@@ -1936,7 +1936,7 @@ private:
 
     static BOOL becomeFirstResponder (id self, SEL)
     {
-        int forwardToSuperView = shouldForwardBecomeFirstResponderToAncestorAtLevel(self);
+        int forwardToSuperView = (int)shouldForwardBecomeFirstResponderToAncestorAtLevel(self);
         if (forwardToSuperView > 0)
         {
             NSView* view = self;
