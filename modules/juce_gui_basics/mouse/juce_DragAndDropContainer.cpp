@@ -243,26 +243,20 @@ private:
         return dynamic_cast<DragAndDropTarget*> (currentlyOverComp.get());
     }
 
-    static Component* findDesktopComponentBelow (Point<int> screenPos)
-    {
-        auto& desktop = Desktop::getInstance();
+    // static Component* findDesktopComponentBelow (Point<int> screenPos)
+    // {
+    //     auto& desktop = Desktop::getInstance();
 
-        for (auto i = desktop.getNumComponents(); --i >= 0;)
-        {
-            auto* desktopComponent = desktop.getComponent (i);
-            auto dPoint = desktopComponent->getLocalPoint (nullptr, screenPos);
+    //     for (auto i = desktop.getNumComponents(); --i >= 0;)
+    //     {
+    //         auto* c = desktop.getComponent(i);
 
-            if (auto* c = desktopComponent->getComponentAt (dPoint))
-            {
-                auto cPoint = c->getLocalPoint (desktopComponent, dPoint);
+    //         if (auto* hit = c->getComponentAt (c->getLocalPoint (nullptr, screenPos)))
+    //             return hit;
+    //     }
 
-                if (c->hitTest (cPoint.getX(), cPoint.getY()))
-                    return c;
-            }
-        }
-
-        return nullptr;
-    }
+    //     return nullptr;
+    // }
 
     DragAndDropTarget* findTarget (Point<int> screenPos, Point<int>& relativePos,
                                    Component*& resultComponent) const
@@ -270,7 +264,7 @@ private:
         auto* hit = getParentComponent();
 
         if (hit == nullptr)
-            hit = findDesktopComponentBelow (screenPos);
+            hit = Desktop::getInstance().findComponentAt (screenPos);
         else
             hit = hit->getComponentAt (hit->getLocalPoint (nullptr, screenPos));
 

@@ -61,7 +61,7 @@ public:
     void deleteLogger();
 
     //==============================================================================
-    const String getApplicationName() override       { return "Projucer"; }
+    const String getApplicationName() override       { return "Projucer MH"; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }
 
     String getVersionDescription() const;

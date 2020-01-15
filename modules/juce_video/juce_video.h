@@ -99,5 +99,10 @@
 #endif
 
 //==============================================================================
+
+#if JUCE_WINDOWS || DOXYGEN
+#include "playback/juce_DirectShowComponent.h"
+#endif
+
 #include "playback/juce_VideoComponent.h"
 #include "capture/juce_CameraDevice.h"

@@ -201,6 +201,10 @@ private:
                     if (! owner.pageLoadHadNetworkError (message))
                         *pDispParams->rgvarg[0].pboolVal = VARIANT_TRUE;
                 }
+				else
+				{
+					owner.pageLoadFinishedWithStatus (statusCode);
+				}
 
                 return S_OK;
             }
