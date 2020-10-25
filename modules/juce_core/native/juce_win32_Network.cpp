@@ -139,6 +139,14 @@ public:
 
                         if (newLocation.isNotEmpty() && newLocation != address)
                         {
+                            if (statusCode == 303)
+                            {
+                                isPost = false;
+                                httpRequestCmd = "GET";
+                                headers = String();
+                                postData.reset();
+                            }
+                            
                             address = newLocation;
                             continue;
                         }
@@ -237,7 +245,7 @@ private:
     MemoryBlock postData;
     int64 position = 0;
     bool finished = false;
-    const bool isPost;
+    bool isPost;
     int timeOutMs = 0;
     String httpRequestCmd;
     int numRedirectsToFollow = 5;

@@ -353,7 +353,15 @@ private:
         if ([frame isEqual: [sender mainFrame]])
         {
             NSURL* url = [[[frame dataSource] request] URL];
+
+            NSInteger statusCode = 0;
+            NSURLResponse* response = [[frame dataSource] response];
+
+            if ((response != nil) && ([response class] == [NSHTTPURLResponse class]))
+              statusCode = [(NSHTTPURLResponse*)response statusCode];
+
             getOwner (self)->pageFinishedLoading (nsStringToJuce ([url absoluteString]));
+            getOwner (self)->pageLoadFinishedWithStatus (statusCode);
         }
     }
 

@@ -513,6 +513,11 @@ void CoreGraphicsContext::drawImage (const Image& sourceImage, const AffineTrans
     drawImage (sourceImage, transform, false);
 }
 
+void CoreGraphicsContext::setBlendMode(CGBlendMode blendMode)
+{
+    CGContextSetBlendMode(context.get(), blendMode);
+}
+
 void CoreGraphicsContext::drawImage (const Image& sourceImage, const AffineTransform& transform, bool fillEntireClipAsTiles)
 {
     auto iw = sourceImage.getWidth();

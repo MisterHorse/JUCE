@@ -145,6 +145,9 @@ public:
               fastMathValue                  (config, Ids::fastMath,                   getUndoManager()),
               debugInformationFormatValue    (config, Ids::debugInformationFormat,     getUndoManager(), isDebug() ? "ProgramDatabase" : "None"),
               pluginBinaryCopyStepValue      (config, Ids::enablePluginBinaryCopyStep, getUndoManager(), false),
+			  minimalRebuild                 (config, Ids::minimalRebuild,	           getUndoManager(), false),
+			  usePrecompiledHeader           (config, Ids::usePrecompiledHeader,	   getUndoManager(), false),
+		      precompiledHeaderFileName      (config, Ids::precompiledHeaderFileName,  getUndoManager(), ""),
               vstBinaryLocation              (config, Ids::vstBinaryLocation,          getUndoManager()),
               vst3BinaryLocation             (config, Ids::vst3BinaryLocation,         getUndoManager()),
               rtasBinaryLocation             (config, Ids::rtasBinaryLocation,         getUndoManager()),
@@ -185,6 +188,12 @@ public:
         bool isFastMathEnabled() const                    { return fastMathValue.get(); }
         bool isPluginBinaryCopyStepEnabled() const        { return pluginBinaryCopyStepValue.get(); }
 
+    
+		bool isMinimalRebuildEnabled() const              { return minimalRebuild.get(); }
+		bool shouldUsePrecompiledHeaders() const	      { return usePrecompiledHeader.get(); }
+		String getPrecompiledHeaderFileName() const       { return precompiledHeaderFileName.get(); }
+
+        
         //==============================================================================
         String createMSVCConfigName() const
         {
@@ -211,6 +220,18 @@ public:
                                                     { get32BitArchName(), get64BitArchName() }),
                        "Whether to use a 32-bit or 64-bit architecture.");
 
+            props.add (new ChoicePropertyComponent(minimalRebuild, "Enable Minimal Rebuild"),
+                       "Minimal Rebuild - If enabled - Multiprocess build is ignored");
+
+			props.add(new ChoicePropertyComponent(usePrecompiledHeader, "Use Precompiled Headers"),
+				"Enable this to generate precompiled headers with the project.  Make sure to set the precompiled header "
+				"file name as well.");
+
+			props.add(new TextPropertyComponent(precompiledHeaderFileName, "Precompiled Header File Name", 1024, false),
+				"The name of the .hpp or .h precompiled header file to be used.  Enter the name of a header file already in your project. "
+				"On Windows platforms, you should create a corresponding .cpp file with the same base name of this header file, and add it "
+				"to this project.  That .cpp "
+				"file should contain exactly one line, and that is: #include \"your_precompiled_header_file_name\" .");
 
             props.add (new ChoicePropertyComponentWithEnablement (debugInformationFormatValue,
                                                                   isDebug() ? isDebugValue : generateDebugSymbolsValue,
@@ -302,6 +323,8 @@ public:
                          generateManifestValue, enableIncrementalLinkingValue, useRuntimeLibDLLValue, multiProcessorCompilationValue,
                          intermediatesPathValue, characterSetValue, architectureTypeValue, fastMathValue, debugInformationFormatValue,
                          pluginBinaryCopyStepValue;
+
+		ValueWithDefault minimalRebuild, usePrecompiledHeader, precompiledHeaderFileName;
 
         ValueWithDefault vstBinaryLocation, vst3BinaryLocation, rtasBinaryLocation, aaxBinaryLocation, unityPluginBinaryLocation;
 
@@ -556,7 +579,13 @@ public:
                     cl->createNewChildElement ("RuntimeLibrary")->addTextElement (config.isUsingRuntimeLibDLL() ? (isDebug ? "MultiThreadedDebugDLL" : "MultiThreadedDLL")
                                                                                                                 : (isDebug ? "MultiThreadedDebug"    : "MultiThreaded"));
                     cl->createNewChildElement ("RuntimeTypeInfo")->addTextElement ("true");
-                    cl->createNewChildElement ("PrecompiledHeader")->addTextElement ("NotUsing");
+
+					if (config.shouldUsePrecompiledHeaders())
+					{
+						cl->createNewChildElement("PrecompiledHeader")->addTextElement("Use");
+						cl->createNewChildElement("PrecompiledHeaderFile")->addTextElement(config.getPrecompiledHeaderFileName());
+					}
+					
                     cl->createNewChildElement ("AssemblerListingLocation")->addTextElement ("$(IntDir)\\");
                     cl->createNewChildElement ("ObjectFileName")->addTextElement ("$(IntDir)\\");
                     cl->createNewChildElement ("ProgramDataBaseFileName")->addTextElement ("$(IntDir)\\");
@@ -566,6 +595,9 @@ public:
 
                     if (config.isFastMathEnabled())
                         cl->createNewChildElement ("FloatingPointModel")->addTextElement ("Fast");
+
+					if (config.isMinimalRebuildEnabled())
+						cl->createNewChildElement("MinimalRebuild")->addTextElement("true");
 
                     auto extraFlags = getOwner().replacePreprocessorTokens (config, getOwner().getExtraCompilerFlagsString()).trim();
                     if (extraFlags.isNotEmpty())
@@ -860,6 +892,21 @@ public:
                                 }
                             }
                         }
+
+						for (ConstConfigIterator i(owner); i.next();)
+						{
+							auto& config = dynamic_cast<const MSVCBuildConfiguration&> (*i);
+
+							if (config.shouldUsePrecompiledHeaders())
+							{
+								String precompiledHeaderBaseName = File::getCurrentWorkingDirectory().getChildFile(config.getPrecompiledHeaderFileName()).getFileNameWithoutExtension();
+								if (precompiledHeaderBaseName == path.getFileNameWithoutExtension())
+								{
+									e->createNewChildElement("PrecompiledHeader")->addTextElement("Create");
+									break;
+								}
+							}
+						}
                     }
                     else
                     {

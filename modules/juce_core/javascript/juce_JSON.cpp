@@ -179,6 +179,12 @@ struct JSONParser
 
                 break;
 
+            case 'u':   // "undefined"
+                if (matchString ("ndefined"))
+                    return {};
+
+                break;
+                
             default:
                 break;
         }
@@ -436,7 +442,7 @@ struct JSONFormatter
                 if (i < array.size() - 1)
                 {
                     if (allOnOneLine)
-                        out << ", ";
+                        out << ",";
                     else
                         out << ',' << newLine;
                 }

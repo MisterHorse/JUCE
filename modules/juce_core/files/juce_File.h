@@ -928,6 +928,16 @@ public:
         windowsSystemDirectory,
        #endif
 
+        /** The folder in which applications store their persistent user-specific settings.
+            On Windows, this might be "\Users\username\AppData\Local".
+            On the Mac, it might be "~/Library". If you're going to store your settings in here,
+
+            IMPORTANT NOTE: this directory differs from applicationDataDirectory
+            This directory is not roamed on Windows, meaning it is not synced in multi domain
+            corporate server environment
+        */
+        userLocalApplicationDataDirectory,
+
         /** The directory in which applications normally get installed.
             So on windows, this would be something like "C:\Program Files", on the
             Mac "/Applications", or "/usr" on linux.

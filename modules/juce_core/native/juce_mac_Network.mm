@@ -711,8 +711,15 @@ public:
         while (isThreadRunning() && ! initialised)
         {
             if (listener != nullptr)
-                if (! listener->postDataSendProgress (inputStream, latestTotalBytes, (int) [[request HTTPBody] length]))
+            {
+                int bodyLength = 0;
+                {
+                    const ScopedLock sl (createConnectionLock);
+                    bodyLength = (int)[[request HTTPBody] length];
+                }
+                if (! listener->postDataSendProgress (inputStream, latestTotalBytes, bodyLength))
                     return false;
+            }
 
             Thread::sleep (1);
         }

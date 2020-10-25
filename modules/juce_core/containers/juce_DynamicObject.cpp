@@ -109,13 +109,16 @@ void DynamicObject::writeAsJSON (OutputStream& out, const int indentLevel, const
 
         out << '"';
         JSONFormatter::writeString (out, properties.getName (i));
-        out << "\": ";
+         if (allOnOneLine)
+            out << "\":";
+        else
+            out << "\": ";
         JSONFormatter::write (out, properties.getValueAt (i), indentLevel + JSONFormatter::indentSize, allOnOneLine, maximumDecimalPlaces);
 
         if (i < numValues - 1)
         {
             if (allOnOneLine)
-                out << ", ";
+                out << ",";
             else
                 out << ',' << newLine;
         }

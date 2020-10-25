@@ -115,6 +115,14 @@ public:
     */
     virtual bool pageLoadHadNetworkError (const String& errorInfo)  { ignoreUnused (errorInfo); return true; }
 
+    /**
+     * This is called when browser reports some http status code
+     * on windows its only when there is some error (does not reports success codes like 200 etc)
+     * on mac it reports all statuses, its called after pageFinishedLoading
+     * @param httpStatus HTTP Status code (200, 404, ...)
+     */
+	virtual void pageLoadFinishedWithStatus (int httpStatus);
+
     /** This callback occurs when a script or other activity in the browser asks for
         the window to be closed.
     */
