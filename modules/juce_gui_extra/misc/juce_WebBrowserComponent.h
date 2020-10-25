@@ -121,7 +121,7 @@ public:
      * on mac it reports all statuses, its called after pageFinishedLoading
      * @param httpStatus HTTP Status code (200, 404, ...)
      */
-	virtual void pageLoadFinishedWithStatus (int httpStatus);
+    virtual void pageLoadFinishedWithStatus (int httpStatus) { ignoreUnused(httpStatus); };
 
     /** This callback occurs when a script or other activity in the browser asks for
         the window to be closed.
